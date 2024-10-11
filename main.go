@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/jessevdk/go-flags"
 	"github.com/keybase/go-keychain"
-	"github.com/peterh/liner"
-	"github.com/pkg/errors"
+	"os"
 )
 
 const (
@@ -31,22 +31,21 @@ func query() {
 	}
 }
 
-func run() error {
-	line := liner.NewLiner()
-	defer line.Close()
+func main() {
+	var parser = flags.NewParser(nil, flags.Default)
 
-	line.SetCtrlCAborts(true)
-	res, err := line.Prompt("AWS_SOMETHING_SOMETHING=")
-	if err != nil {
-		return errors.Wrap(err, "get line")
+	must := func(_ *flags.Command, err error) {
+		if err != nil {
+			panic(err)
+		}
 	}
 
-	fmt.Println(res)
-	return nil
-}
+	must(parser.AddCommand("new", "Create a new profile", "Creates a new profile", &NewCommand{}))
+	must(parser.AddCommand("list", "List profiles", "Lists all profiles", &ListCommand{}))
+	must(parser.AddCommand("shell", "Open shell for profile", "Opens a shell with the selected profile", &ShellCommand{}))
+	must(parser.AddCommand("edit", "Edit a profile", "Edits the selected profile", &EditCommand{}))
 
-func main() {
-	if err := run(); err != nil {
-		panic(err)
+	if _, err := parser.Parse(); err != nil {
+		os.Exit(1)
 	}
 }
