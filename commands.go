@@ -121,7 +121,13 @@ func (cmd *ShellCommand) Execute(args []string) error {
 	if shell == "" {
 		shell = "/bin/sh"
 	}
-	fmt.Printf("Executing shell: %s\n", shell)
+
+	// [[ -n "$CUSTOM_PS1" ]] && PS1="$CUSTOM_PS1"
+	normalPS1 := "%n@%m %1~ %# "
+	customPS1 := fmt.Sprintf("[%s] %s", cmd.Profile, normalPS1)
+	if err := os.Setenv("CUSTOM_PS1", customPS1); err != nil {
+		return errors.Wrap(err, "set env")
+	}
 
 	return syscall.Exec(shell, []string{shell}, os.Environ())
 }
