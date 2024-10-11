@@ -84,6 +84,28 @@ type ListCommand struct{}
 
 func (cmd *ListCommand) Execute(args []string) error {
 	fmt.Println("List command called, listing all profiles")
+
+	query := keychain.NewItem()
+	query.SetSecClass(keychain.SecClassGenericPassword)
+	query.SetService(service)
+	query.SetMatchLimit(keychain.MatchLimitAll)
+	query.SetReturnAttributes(true)
+
+	results, err := keychain.QueryItem(query)
+	if err != nil {
+		return errors.Wrap(err, "failed to query keychain")
+	}
+
+	if len(results) == 0 {
+		fmt.Println("No profiles found.")
+		return nil
+	}
+
+	// Print the account names (profile names) found
+	for _, result := range results {
+		fmt.Println(result.Account)
+	}
+
 	return nil
 }
 
