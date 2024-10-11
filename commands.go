@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/peterh/liner"
 	"github.com/pkg/errors"
@@ -73,18 +72,7 @@ func (cmd *NewCommand) Execute(args []string) error {
 		}
 	}
 
-	return newProfile(result)
-}
-
-func newProfile(result map[string]string) error {
-	out, err := json.Marshal(result)
-	if err != nil {
-		return errors.Wrap(err, "marshal")
-	}
-
-	fmt.Println("new profile", string(out))
-
-	return nil
+	return newProfile(cmd.Profile, result)
 }
 
 type ListCommand struct{}
