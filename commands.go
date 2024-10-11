@@ -1,9 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/keybase/go-keychain"
 	"github.com/peterh/liner"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
+	"os"
+	"syscall"
 )
 
 type ProfileOptions struct {
@@ -87,8 +92,38 @@ type ShellCommand struct {
 }
 
 func (cmd *ShellCommand) Execute(args []string) error {
-	fmt.Printf("Shell command called with profile: %s\n", cmd.Profile)
-	return nil
+	item, err := keychain.GetGenericPassword(service, cmd.Profile, "", "")
+	if err != nil {
+		return errors.Wrap(err, "failed to get profile from keychain")
+	}
+	if len(item) == 0 {
+		return fmt.Errorf("profile %s not found in keychain", cmd.Profile)
+	}
+
+	var result map[string]string
+	if err := json.Unmarshal(item, &result); err != nil {
+		return errors.Wrap(err, "failed to unmarshal profile data")
+	}
+
+	result = lo.PickBy(result, func(key string, _ string) bool {
+		return lo.ContainsBy(fields, func(f field) bool { return f.name == key })
+	})
+
+	for k, v := range result {
+		if v != "" {
+			if err := os.Setenv(k, v); err != nil {
+				return errors.Wrap(err, "failed to set environment variable")
+			}
+		}
+	}
+
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+	fmt.Printf("Executing shell: %s\n", shell)
+
+	return syscall.Exec(shell, []string{shell}, os.Environ())
 }
 
 type EditCommand struct {
