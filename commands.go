@@ -11,19 +11,33 @@ type ProfileOptions struct {
 	Profile string `short:"p" long:"profile" description:"Profile to use" required:"true"`
 }
 
-var fields = []string{
-	"AWS_ACCESS_KEY_ID",
-	"AWS_SECRET_ACCESS_KEY",
-	"RESTIC_REPOSITORY",
-	"RESTIC_PASSWORD",
+type field struct {
+	name     string
+	required bool
+	secret   bool
 }
 
-func readField(name string) (string, error) {
+var fields = []field{
+	{"AWS_ACCESS_KEY_ID", false, false},
+	{"AWS_SECRET_ACCESS_KEY", false, true},
+	{"RESTIC_REPOSITORY", true, false},
+	{"RESTIC_PASSWORD", true, true},
+}
+
+func readField(f field) (string, error) {
 	line := liner.NewLiner()
 	defer line.Close()
 
 	line.SetCtrlCAborts(true)
-	res, err := line.Prompt(name + "=")
+
+	var res string
+	var err error
+	if f.secret {
+		res, err = line.PasswordPrompt("(secret) " + f.name + "=")
+	} else {
+		res, err = line.Prompt(f.name + "=")
+	}
+
 	if err != nil {
 		return "", errors.Wrap(err, "get line")
 	}
@@ -41,12 +55,21 @@ func (cmd *NewCommand) Execute(args []string) error {
 	result := map[string]string{}
 
 	for _, field := range fields {
-		f, err := readField(field)
+	retry:
+		value, err := readField(field)
 		if err != nil {
 			return errors.Wrap(err, "read field")
 		}
-		if f != "" {
-			result[field] = f
+
+		if value == "" {
+			if field.required {
+				fmt.Printf("%s is required\n", field.name)
+				goto retry
+			}
+		}
+
+		if value != "" {
+			result[field.name] = value
 		}
 	}
 
