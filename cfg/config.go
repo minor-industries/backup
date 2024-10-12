@@ -8,8 +8,13 @@ type BackupTarget struct {
 	CACertPath         string `toml:"ca_cert_path"`
 }
 
+type KeychainProfile struct {
+	Profile string
+}
+
 type BackupConfig struct {
-	ResticPath string         `toml:"restic_path"`
-	SourceHost string         `toml:"source_host"`
-	Targets    []BackupTarget `toml:"targets"`
+	ResticPath       string            `toml:"restic_path"`
+	SourceHost       string            `toml:"source_host"`
+	Targets          []BackupTarget    `toml:"targets"`
+	KeychainProfiles []KeychainProfile `toml:"keychain_profiles"`
 }
