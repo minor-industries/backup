@@ -83,6 +83,24 @@ func QuantizeFilter(callback func(msg any) error) func(msg any) error {
 	}
 }
 
+// TODO: integration test this
+
+func Run(
+	opts *cfg.BackupConfig,
+	backupPath string,
+	callback func(any) error,
+) error {
+	for _, backupCfg := range opts.Targets {
+		if err := BackupOne(opts, &backupCfg, backupPath, callback); err != nil {
+			return errors.Wrap(err, "backup one")
+		}
+	}
+
+	//TODO: load keychain profiles and run those
+
+	return nil
+}
+
 func BackupOne(
 	opts *cfg.BackupConfig,
 	backupCfg *cfg.BackupTarget,
