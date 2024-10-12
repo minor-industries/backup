@@ -1,4 +1,4 @@
-module keychain
+module github.com/minor-industries/backup
 
 go 1.21.1
 
