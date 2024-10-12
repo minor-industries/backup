@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/keybase/go-keychain"
 	keychain2 "github.com/minor-industries/backup/keychain"
@@ -117,17 +116,9 @@ type ShellCommand struct {
 }
 
 func (cmd *ShellCommand) Execute(args []string) error {
-	item, err := keychain.GetGenericPassword(keychain2.KeychainServiceName, cmd.Profile, "", "")
+	result, err := keychain2.LoadProfile(cmd.Profile)
 	if err != nil {
-		return errors.Wrap(err, "failed to get profile from keychain")
-	}
-	if len(item) == 0 {
-		return fmt.Errorf("profile %s not found in keychain", cmd.Profile)
-	}
-
-	var result map[string]string
-	if err := json.Unmarshal(item, &result); err != nil {
-		return errors.Wrap(err, "failed to unmarshal profile data")
+		return errors.Wrap(err, "load profile")
 	}
 
 	result = lo.PickBy(result, func(key string, _ string) bool {

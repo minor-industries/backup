@@ -27,3 +27,20 @@ func NewProfile(profile string, result map[string]string) error {
 	err = keychain.AddItem(item)
 	return errors.Wrap(err, "add item")
 }
+
+func LoadProfile(profile string) (map[string]string, error) {
+	item, err := keychain.GetGenericPassword(KeychainServiceName, profile, "", "")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get profile from keychain")
+	}
+	if len(item) == 0 {
+		return nil, fmt.Errorf("profile %s not found in keychain", profile)
+	}
+
+	var result map[string]string
+	if err := json.Unmarshal(item, &result); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal profile data")
+	}
+
+	return result, nil
+}
