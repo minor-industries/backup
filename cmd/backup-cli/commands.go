@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/keybase/go-keychain"
+	keychain2 "github.com/minor-industries/backup/keychain"
 	"github.com/peterh/liner"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"os"
 	"syscall"
 )
+
+// TODO: only use minor-industries/backup/keychain, not keybase/go-keychain
 
 type ProfileOptions struct {
 	Profile string `short:"p" long:"profile" description:"Profile to use" required:"true"`
@@ -77,7 +80,7 @@ func (cmd *NewCommand) Execute(args []string) error {
 		}
 	}
 
-	return newProfile(cmd.Profile, result)
+	return keychain2.NewProfile(cmd.Profile, result)
 }
 
 type ListCommand struct{}
@@ -87,7 +90,7 @@ func (cmd *ListCommand) Execute(args []string) error {
 
 	query := keychain.NewItem()
 	query.SetSecClass(keychain.SecClassGenericPassword)
-	query.SetService(service)
+	query.SetService(keychain2.KeychainServiceName)
 	query.SetMatchLimit(keychain.MatchLimitAll)
 	query.SetReturnAttributes(true)
 
@@ -114,7 +117,7 @@ type ShellCommand struct {
 }
 
 func (cmd *ShellCommand) Execute(args []string) error {
-	item, err := keychain.GetGenericPassword(service, cmd.Profile, "", "")
+	item, err := keychain.GetGenericPassword(keychain2.KeychainServiceName, cmd.Profile, "", "")
 	if err != nil {
 		return errors.Wrap(err, "failed to get profile from keychain")
 	}
