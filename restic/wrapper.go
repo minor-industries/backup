@@ -3,7 +3,9 @@ package restic
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"github.com/minor-industries/backup/cfg"
+	"github.com/minor-industries/backup/keychain"
 	"github.com/pkg/errors"
 	"os"
 	"os/exec"
@@ -94,6 +96,14 @@ func Run(
 		if err := BackupOne(opts, &backupCfg, backupPath, callback); err != nil {
 			return errors.Wrap(err, "backup one")
 		}
+	}
+
+	for _, p := range opts.KeychainProfiles {
+		profile, err := keychain.LoadProfile(p.Profile)
+		if err != nil {
+			return errors.Wrap(err, "load keychain profile")
+		}
+		fmt.Println(profile)
 	}
 
 	//TODO: load keychain profiles and run those
