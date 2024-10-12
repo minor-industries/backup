@@ -103,10 +103,9 @@ func Run(
 		if err != nil {
 			return errors.Wrap(err, "load keychain profile")
 		}
+		//TODO: get rid of map[string]string
 		fmt.Println(profile)
 	}
-
-	//TODO: load keychain profiles and run those
 
 	return nil
 }
