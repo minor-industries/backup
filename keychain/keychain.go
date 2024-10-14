@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/keybase/go-keychain"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 )
 
 const (
@@ -50,4 +51,36 @@ func LoadProfile(profileName string) (*Profile, error) {
 	}
 
 	return &result, nil
+}
+
+func DeleteProfile(profileName string) error {
+	query := keychain.NewItem()
+	query.SetSecClass(keychain.SecClassGenericPassword)
+	query.SetService(KeychainServiceName)
+	query.SetAccount(profileName)
+	query.SetMatchLimit(keychain.MatchLimitOne)
+	query.SetReturnData(false) // We just need to delete, no data retrieval needed
+
+	err := keychain.DeleteItem(query)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to delete profile %s", profileName))
+	}
+	return nil
+}
+
+func ListProfiles() ([]string, error) {
+	query := keychain.NewItem()
+	query.SetSecClass(keychain.SecClassGenericPassword)
+	query.SetService(KeychainServiceName)
+	query.SetMatchLimit(keychain.MatchLimitAll)
+	query.SetReturnAttributes(true)
+
+	results, err := keychain.QueryItem(query)
+	if err != nil {
+		return nil, err
+	}
+
+	return lo.Map(results, func(item keychain.QueryResult, _ int) string {
+		return item.Account
+	}), nil
 }

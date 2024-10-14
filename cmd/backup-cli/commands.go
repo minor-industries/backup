@@ -2,15 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/keybase/go-keychain"
-	keychain2 "github.com/minor-industries/backup/keychain"
+	"github.com/minor-industries/backup/keychain"
 	"github.com/peterh/liner"
 	"github.com/pkg/errors"
 	"os"
 	"syscall"
 )
-
-// TODO: only use minor-industries/backup/keychain, not keybase/go-keychain
 
 type ProfileOptions struct {
 	Profile string `short:"p" long:"profile" description:"Profile to use" required:"true"`
@@ -78,7 +75,7 @@ func (cmd *NewCommand) Execute(args []string) error {
 		}
 	}
 
-	return keychain2.NewProfile(cmd.Profile, &keychain2.Profile{
+	return keychain.NewProfile(cmd.Profile, &keychain.Profile{
 		AwsAccessKeyID:     result["AWS_ACCESS_KEY_ID"],
 		AwsSecretAccessKey: result["AWS_SECRET_ACCESS_KEY"],
 		ResticRepository:   result["RESTIC_REPOSITORY"],
@@ -89,17 +86,9 @@ func (cmd *NewCommand) Execute(args []string) error {
 type ListCommand struct{}
 
 func (cmd *ListCommand) Execute(args []string) error {
-	fmt.Println("List command called, listing all profiles")
-
-	query := keychain.NewItem()
-	query.SetSecClass(keychain.SecClassGenericPassword)
-	query.SetService(keychain2.KeychainServiceName)
-	query.SetMatchLimit(keychain.MatchLimitAll)
-	query.SetReturnAttributes(true)
-
-	results, err := keychain.QueryItem(query)
+	results, err := keychain.ListProfiles()
 	if err != nil {
-		return errors.Wrap(err, "failed to query keychain")
+		return errors.Wrap(err, "list profiles")
 	}
 
 	if len(results) == 0 {
@@ -107,9 +96,8 @@ func (cmd *ListCommand) Execute(args []string) error {
 		return nil
 	}
 
-	// Print the account names (profile names) found
 	for _, result := range results {
-		fmt.Println(result.Account)
+		fmt.Println(result)
 	}
 
 	return nil
@@ -120,7 +108,7 @@ type ShellCommand struct {
 }
 
 func (cmd *ShellCommand) Execute(args []string) error {
-	result, err := keychain2.LoadProfile(cmd.Profile)
+	result, err := keychain.LoadProfile(cmd.Profile)
 	if err != nil {
 		return errors.Wrap(err, "load profile")
 	}

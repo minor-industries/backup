@@ -85,8 +85,6 @@ func QuantizeFilter(callback func(msg any) error) func(msg any) error {
 	}
 }
 
-// TODO: integration test this
-
 func Run(
 	opts *cfg.BackupConfig,
 	backupPath string,
@@ -103,7 +101,6 @@ func Run(
 		if err != nil {
 			return errors.Wrap(err, "load keychain profile")
 		}
-		//TODO: get rid of map[string]string
 		fmt.Println(profile)
 	}
 
