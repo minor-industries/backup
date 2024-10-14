@@ -6,7 +6,6 @@ import (
 	keychain2 "github.com/minor-industries/backup/keychain"
 	"github.com/peterh/liner"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 	"os"
 	"syscall"
 )
@@ -79,7 +78,12 @@ func (cmd *NewCommand) Execute(args []string) error {
 		}
 	}
 
-	return keychain2.NewProfile(cmd.Profile, result)
+	return keychain2.NewProfile(cmd.Profile, &keychain2.Profile{
+		AwsAccessKeyID:     result["AWS_ACCESS_KEY_ID"],
+		AwsSecretAccessKey: result["AWS_SECRET_ACCESS_KEY"],
+		ResticRepository:   result["RESTIC_REPOSITORY"],
+		ResticPassword:     result["RESTIC_PASSWORD"],
+	})
 }
 
 type ListCommand struct{}
@@ -121,15 +125,17 @@ func (cmd *ShellCommand) Execute(args []string) error {
 		return errors.Wrap(err, "load profile")
 	}
 
-	result = lo.PickBy(result, func(key string, _ string) bool {
-		return lo.ContainsBy(fields, func(f field) bool { return f.name == key })
-	})
-
-	for k, v := range result {
-		if v != "" {
-			if err := os.Setenv(k, v); err != nil {
-				return errors.Wrap(err, "failed to set environment variable")
-			}
+	env := []string{
+		"AWS_ACCESS_KEY_ID", result.AwsAccessKeyID,
+		"AWS_SECRET_ACCESS_KEY", result.AwsSecretAccessKey,
+		"RESTIC_REPOSITORY", result.ResticRepository,
+		"RESTIC_PASSWORD", result.ResticPassword,
+	}
+	for i := 0; i < len(env); i += 2 {
+		k, v := env[i], env[i+1]
+		err := os.Setenv(k, v)
+		if err != nil {
+			return errors.Wrap(err, "set env")
 		}
 	}
 
