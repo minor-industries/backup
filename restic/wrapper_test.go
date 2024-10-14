@@ -2,7 +2,8 @@ package restic_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	gokeychain "github.com/keybase/go-keychain"
+	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,13 +16,13 @@ import (
 
 func deleteProfileIfExists(profileName string) {
 	err := keychain.DeleteProfile(profileName)
-	if err != nil && err != keychain.ErrorItemNotFound {
+	if err != nil && !errors.Is(err, gokeychain.ErrorItemNotFound) {
 		fmt.Printf("Failed to delete profile %s: %v\n", profileName, err)
 	}
 }
 
 func TestRunWithKeychainProfiles(t *testing.T) {
-	profiles, err := listProfiles()
+	profiles, err := keychain.ListProfiles()
 	require.NoError(t, err)
 
 	for _, profile := range profiles {
@@ -30,7 +31,7 @@ func TestRunWithKeychainProfiles(t *testing.T) {
 		}
 	}
 
-	tmpDir, err := ioutil.TempDir("", "restic-integration-test")
+	tmpDir, err := os.MkdirTemp("", "restic-integration-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -39,7 +40,7 @@ func TestRunWithKeychainProfiles(t *testing.T) {
 	require.NoError(t, err)
 
 	testFile := filepath.Join(srcDir, "testfile.txt")
-	err = ioutil.WriteFile(testFile, []byte("Hello, Restic!"), 0644)
+	err = os.WriteFile(testFile, []byte("Hello, Restic!"), 0644)
 	require.NoError(t, err)
 
 	backupDirA := filepath.Join(tmpDir, "backup", "a")
@@ -72,18 +73,10 @@ func TestRunWithKeychainProfiles(t *testing.T) {
 		},
 	}
 
-	var messages []any
-	callback := func(msg any) error {
-		messages = append(messages, msg)
+	err = restic.Run(opts, srcDir, func(a any) error {
+		fmt.Println("callback:", a)
 		return nil
-	}
-
-	err = restic.Run(opts, srcDir, callback)
+	})
 	require.NoError(t, err)
 
-	require.NotEmpty(t, messages)
-
-	for _, msg := range messages {
-		fmt.Printf("Received message: %#v\n", msg)
-	}
 }

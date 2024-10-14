@@ -25,8 +25,6 @@ func NewProfile(profileName string, profile *Profile) error {
 		return errors.Wrap(err, "marshal")
 	}
 
-	fmt.Println("new profile", profile, string(out))
-
 	item := keychain.NewItem()
 	item.SetSecClass(keychain.SecClassGenericPassword)
 	item.SetService(KeychainServiceName)
