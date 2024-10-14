@@ -43,6 +43,12 @@ type ResticSummary struct {
 	SnapshotID          string  `json:"snapshot_id"`
 }
 
+type ResticInitialized struct {
+	MessageType string `json:"message_type"`
+	ID          string `json:"id"`
+	Repository  string `json:"repository"`
+}
+
 func decodeResticMessage(data []byte) (any, error) {
 	var shim ResticMessage
 	if err := json.Unmarshal(data, &shim); err != nil {
@@ -62,8 +68,14 @@ func decodeResticMessage(data []byte) (any, error) {
 			return nil, err
 		}
 		return summary, nil
+	case "initialized":
+		var initialized ResticInitialized
+		if err := json.Unmarshal(data, &initialized); err != nil {
+			return nil, err
+		}
+		return initialized, nil
 	default:
-		return nil, errors.New("unknown message type")
+		return nil, fmt.Errorf("unknown message type %s", shim.MessageType)
 	}
 }
 
@@ -90,8 +102,8 @@ func Run(
 	backupPath string,
 	callback func(any) error,
 ) error {
-	for _, backupCfg := range opts.Targets {
-		if err := BackupOne(opts, &backupCfg, backupPath, callback); err != nil {
+	for _, target := range opts.Targets {
+		if err := BackupOne(opts, &target, backupPath, callback); err != nil {
 			return errors.Wrap(err, "backup one")
 		}
 	}
@@ -101,7 +113,14 @@ func Run(
 		if err != nil {
 			return errors.Wrap(err, "load keychain profile")
 		}
-		fmt.Println(profile)
+		if err := BackupOne(opts, &cfg.BackupTarget{
+			AwsAccessKeyId:     profile.AwsAccessKeyID,
+			AwsSecretAccessKey: profile.AwsSecretAccessKey,
+			ResticRepository:   profile.ResticRepository,
+			ResticPassword:     profile.ResticPassword,
+		}, backupPath, callback); err != nil {
+			return errors.Wrap(err, "backup one")
+		}
 	}
 
 	return nil
@@ -109,11 +128,10 @@ func Run(
 
 func BackupOne(
 	opts *cfg.BackupConfig,
-	backupCfg *cfg.BackupTarget,
+	target *cfg.BackupTarget,
 	backupPath string,
 	callback func(any) error,
 ) error {
-	//cmd := exec.Command(opts.ResticPath, "init")
 	cmd := exec.Command(
 		os.ExpandEnv(opts.ResticPath),
 		"backup",
@@ -122,16 +140,34 @@ func BackupOne(
 		opts.SourceHost,
 		".",
 	)
-	cmd.Env = append(os.Environ(),
-		"AWS_ACCESS_KEY_ID="+backupCfg.AwsAccessKeyId,
-		"AWS_SECRET_ACCESS_KEY="+backupCfg.AwsSecretAccessKey,
-		"RESTIC_REPOSITORY="+backupCfg.ResticRepository,
-		"RESTIC_PASSWORD="+backupCfg.ResticPassword,
-	)
-	if backupCfg.CACertPath != "" {
-		cmd.Env = append(cmd.Env, "RESTIC_CACERT="+os.ExpandEnv(backupCfg.CACertPath))
-	}
 	cmd.Dir = backupPath
+
+	return resticCmd(target, cmd, callback)
+}
+
+func InitRepo(
+	opts *cfg.BackupConfig,
+	target *cfg.BackupTarget,
+	callback func(any) error,
+) error {
+	cmd := exec.Command(opts.ResticPath, "init", "--json")
+	return resticCmd(target, cmd, callback)
+}
+
+func resticCmd(
+	target *cfg.BackupTarget,
+	cmd *exec.Cmd,
+	callback func(any) error,
+) error {
+	cmd.Env = append(os.Environ(),
+		"AWS_ACCESS_KEY_ID="+target.AwsAccessKeyId,
+		"AWS_SECRET_ACCESS_KEY="+target.AwsSecretAccessKey,
+		"RESTIC_REPOSITORY="+target.ResticRepository,
+		"RESTIC_PASSWORD="+target.ResticPassword,
+	)
+	if target.CACertPath != "" {
+		cmd.Env = append(cmd.Env, "RESTIC_CACERT="+os.ExpandEnv(target.CACertPath))
+	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {

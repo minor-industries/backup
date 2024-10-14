@@ -18,6 +18,7 @@ func main() {
 	must(parser.AddCommand("list", "List profiles", "Lists all profiles", &ListCommand{}))
 	must(parser.AddCommand("shell", "Open shell for profile", "Opens a shell with the selected profile", &ShellCommand{}))
 	must(parser.AddCommand("edit", "Edit a profile", "Edits the selected profile", &EditCommand{}))
+	must(parser.AddCommand("delete", "Delete a profile", "Deletes the selected profile", &DeleteCommand{}))
 
 	if _, err := parser.Parse(); err != nil {
 		os.Exit(1)

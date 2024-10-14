@@ -1,8 +1,8 @@
 package restic_test
 
 import (
+	"encoding/json"
 	"fmt"
-	gokeychain "github.com/keybase/go-keychain"
 	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
@@ -14,20 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func deleteProfileIfExists(profileName string) {
-	err := keychain.DeleteProfile(profileName)
-	if err != nil && !errors.Is(err, gokeychain.ErrorItemNotFound) {
-		fmt.Printf("Failed to delete profile %s: %v\n", profileName, err)
-	}
-}
-
 func TestRunWithKeychainProfiles(t *testing.T) {
 	profiles, err := keychain.ListProfiles()
 	require.NoError(t, err)
 
 	for _, profile := range profiles {
 		if profile == "profileA" || profile == "profileB" {
-			deleteProfileIfExists(profile)
+			err := keychain.DeleteProfile(profile)
+			require.NoError(t, err)
 		}
 	}
 
@@ -57,12 +51,19 @@ func TestRunWithKeychainProfiles(t *testing.T) {
 		ResticPassword:   "passwordA",
 	})
 	require.NoError(t, err)
+	defer func() {
+		err := keychain.DeleteProfile("profileA")
+		require.NoError(t, err)
+	}()
 
 	err = keychain.NewProfile("profileB", &keychain.Profile{
 		ResticRepository: backupDirB,
 		ResticPassword:   "passwordB",
 	})
-	require.NoError(t, err)
+	defer func() {
+		err := keychain.DeleteProfile("profileB")
+		require.NoError(t, err)
+	}()
 
 	opts := &cfg.BackupConfig{
 		ResticPath: "restic",
@@ -73,10 +74,27 @@ func TestRunWithKeychainProfiles(t *testing.T) {
 		},
 	}
 
-	err = restic.Run(opts, srcDir, func(a any) error {
-		fmt.Println("callback:", a)
+	callback := restic.QuantizeFilter(func(a any) error {
+		marshal, err := json.Marshal(a)
+		if err != nil {
+			return errors.Wrap(err, "marshal")
+		}
+		fmt.Println(string(marshal))
 		return nil
 	})
+
+	err = restic.InitRepo(opts, &cfg.BackupTarget{
+		ResticRepository: backupDirA,
+		ResticPassword:   "passwordA",
+	}, callback)
 	require.NoError(t, err)
 
+	err = restic.InitRepo(opts, &cfg.BackupTarget{
+		ResticRepository: backupDirB,
+		ResticPassword:   "passwordB",
+	}, callback)
+	require.NoError(t, err)
+
+	err = restic.Run(opts, srcDir, callback)
+	require.NoError(t, err)
 }
