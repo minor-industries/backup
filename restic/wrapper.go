@@ -50,7 +50,8 @@ type ResticInitialized struct {
 }
 
 type StartBackup struct {
-	Repository string `json:"repository"`
+	Repository      string `json:"repository,omitempty"`
+	KeychainProfile string `json:"keychain_profile,omitempty"`
 }
 
 func decodeResticMessage(data []byte) (any, error) {
@@ -113,6 +114,10 @@ func Run(
 	}
 
 	for _, p := range opts.KeychainProfiles {
+		if err := callback(StartBackup{KeychainProfile: p.Profile}); err != nil {
+			return errors.Wrap(err, "callback")
+		}
+
 		profile, err := keychain.LoadProfile(p.Profile)
 		if err != nil {
 			return errors.Wrap(err, "load keychain profile")
