@@ -46,7 +46,11 @@ type ResticSummary struct {
 type ResticInitialized struct {
 	MessageType string `json:"message_type"`
 	ID          string `json:"id"`
-	Repository  string `json:"repository"`
+	Repository  string `json:"repository"` // TODO: should mask passwords in these messages
+}
+
+type StartBackup struct {
+	Repository string `json:"repository"`
 }
 
 func decodeResticMessage(data []byte) (any, error) {
@@ -132,6 +136,15 @@ func BackupOne(
 	backupPath string,
 	callback func(any) error,
 ) error {
+	masked, err := maskPassword(target.ResticRepository)
+	if err != nil {
+		return errors.Wrap(err, "mask repo password")
+	}
+
+	if err := callback(StartBackup{Repository: masked}); err != nil {
+		return errors.Wrap(err, "callback")
+	}
+
 	cmd := exec.Command(
 		os.ExpandEnv(opts.ResticPath),
 		"backup",
