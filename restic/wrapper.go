@@ -96,6 +96,9 @@ func QuantizeFilter(callback func(msg any) error) func(msg any) error {
 				return callback(msg)
 			}
 			return nil
+		case StartBackup, ResticSummary:
+			lastQuantum = -1.0
+			return callback(msg)
 		default:
 			return callback(msg)
 		}
