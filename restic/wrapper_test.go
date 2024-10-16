@@ -95,6 +95,6 @@ func TestRunWithKeychainProfiles(t *testing.T) {
 	}, callback)
 	require.NoError(t, err)
 
-	err = restic.Run(opts, srcDir, callback)
+	err = restic.Run(opts, srcDir, []string{"."}, callback)
 	require.NoError(t, err)
 }

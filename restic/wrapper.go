@@ -128,11 +128,12 @@ func LogMessages(callback func(msg string) error) func(msg any) error {
 
 func Run(
 	opts *cfg.BackupConfig,
-	backupPath string,
+	chdir string,
+	backupPaths []string,
 	callback func(any) error,
 ) error {
 	for _, target := range opts.Targets {
-		if err := BackupOne(opts, &target, backupPath, callback); err != nil {
+		if err := BackupOne(opts, &target, chdir, backupPaths, callback); err != nil {
 			return errors.Wrap(err, "backup one")
 		}
 	}
@@ -151,7 +152,7 @@ func Run(
 			AwsSecretAccessKey: profile.AwsSecretAccessKey,
 			ResticRepository:   profile.ResticRepository,
 			ResticPassword:     profile.ResticPassword,
-		}, backupPath, callback); err != nil {
+		}, chdir, backupPaths, callback); err != nil {
 			return errors.Wrap(err, "backup one")
 		}
 	}
@@ -162,9 +163,14 @@ func Run(
 func BackupOne(
 	opts *cfg.BackupConfig,
 	target *cfg.BackupTarget,
-	backupPath string,
+	chdir string,
+	backupPaths []string,
 	callback func(any) error,
 ) error {
+	if len(backupPaths) == 0 {
+		return errors.New("no backup paths given")
+	}
+
 	masked, err := maskPassword(target.ResticRepository)
 	if err != nil {
 		return errors.Wrap(err, "mask repo password")
@@ -174,15 +180,21 @@ func BackupOne(
 		return errors.Wrap(err, "callback")
 	}
 
-	cmd := exec.Command(
+	args := []string{
 		os.ExpandEnv(opts.ResticPath),
 		"backup",
 		"--json",
 		"--host",
 		opts.SourceHost,
-		".",
-	)
-	cmd.Dir = backupPath
+	}
+
+	args = append(args, backupPaths...)
+
+	cmd := exec.Command(args[0], args[1:]...)
+
+	if chdir != "" {
+		cmd.Dir = chdir
+	}
 
 	return resticCmd(target, cmd, callback)
 }
