@@ -102,6 +102,27 @@ func QuantizeFilter(callback func(msg any) error) func(msg any) error {
 	}
 }
 
+func LogMessages(callback func(msg string) error) func(msg any) error {
+	return QuantizeFilter(func(msg any) error {
+		switch msg := msg.(type) {
+		case StartBackup:
+			if msg.KeychainProfile != "" {
+				return callback(fmt.Sprint("loading keychain profile:", msg.KeychainProfile))
+			}
+			if msg.Repository != "" {
+				return callback(fmt.Sprint("starting backup:", msg.Repository))
+			}
+		case ResticStatus:
+			return callback(fmt.Sprintf("progress: %.1f%%", msg.PercentDone*100))
+		case ResticSummary:
+			return callback("backup done")
+		default:
+			return callback("unknown message type")
+		}
+		return nil
+	})
+}
+
 func Run(
 	opts *cfg.BackupConfig,
 	backupPath string,
