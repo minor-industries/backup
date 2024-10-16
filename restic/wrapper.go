@@ -110,10 +110,10 @@ func LogMessages(callback func(msg string) error) func(msg any) error {
 		switch msg := msg.(type) {
 		case StartBackup:
 			if msg.KeychainProfile != "" {
-				return callback(fmt.Sprint("loading keychain profile:", msg.KeychainProfile))
+				return callback(fmt.Sprintf("loading keychain profile: %s", msg.KeychainProfile))
 			}
 			if msg.Repository != "" {
-				return callback(fmt.Sprint("starting backup:", msg.Repository))
+				return callback(fmt.Sprintf("starting backup: %s", msg.Repository))
 			}
 		case ResticStatus:
 			return callback(fmt.Sprintf("progress: %.1f%%", msg.PercentDone*100))
