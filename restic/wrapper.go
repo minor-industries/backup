@@ -51,6 +51,12 @@ type ResticInitialized struct {
 	Repository  string `json:"repository"` // TODO: should mask passwords in these messages
 }
 
+type ResticStats struct {
+	TotalSize      int `json:"total_size"`
+	TotalFileCount int `json:"total_file_count"`
+	SnapshotsCount int `json:"snapshots_count"`
+}
+
 type StartBackup struct {
 	Repository      string `json:"repository,omitempty"`
 	KeychainProfile string `json:"keychain_profile,omitempty"`
@@ -134,27 +140,54 @@ func Run(
 	backupPaths []string,
 	callback func(any) error,
 ) error {
+	// check all targets with stats command before starting backup
+	for _, target := range opts.Targets {
+		if _, err := Stats(opts, &target); err != nil {
+			return errors.Wrap(err, "check target")
+		}
+	}
+
+	// load keychain profiles
+	profiles := make([]*keychain.Profile, len(opts.KeychainProfiles))
+	profileTargets := make([]*cfg.BackupTarget, len(opts.KeychainProfiles))
+	for i, p := range opts.KeychainProfiles {
+		if err := callback(StartBackup{KeychainProfile: p.Profile}); err != nil {
+			return errors.Wrap(err, "callback")
+		}
+
+		var err error
+		profiles[i], err = keychain.LoadProfile(p.Profile)
+		if err != nil {
+			return errors.Wrap(err, "load keychain profile")
+		}
+
+		profileTargets[i] = &cfg.BackupTarget{
+			AwsAccessKeyId:     profiles[i].AwsAccessKeyID,
+			AwsSecretAccessKey: profiles[i].AwsSecretAccessKey,
+			ResticRepository:   profiles[i].ResticRepository,
+			ResticPassword:     profiles[i].ResticPassword,
+		}
+	}
+
+	// check keychain profiles with stats command before starting
+	for _, target := range profileTargets {
+		if _, err := Stats(opts, target); err != nil {
+			return errors.Wrap(err, "check profile")
+		}
+	}
+
 	for _, target := range opts.Targets {
 		if err := BackupOne(opts, &target, chdir, backupPaths, callback); err != nil {
 			return errors.Wrap(err, "backup one")
 		}
 	}
 
-	for _, p := range opts.KeychainProfiles {
+	for i, p := range opts.KeychainProfiles {
 		if err := callback(StartBackup{KeychainProfile: p.Profile}); err != nil {
 			return errors.Wrap(err, "callback")
 		}
 
-		profile, err := keychain.LoadProfile(p.Profile)
-		if err != nil {
-			return errors.Wrap(err, "load keychain profile")
-		}
-		if err := BackupOne(opts, &cfg.BackupTarget{
-			AwsAccessKeyId:     profile.AwsAccessKeyID,
-			AwsSecretAccessKey: profile.AwsSecretAccessKey,
-			ResticRepository:   profile.ResticRepository,
-			ResticPassword:     profile.ResticPassword,
-		}, chdir, backupPaths, callback); err != nil {
+		if err := BackupOne(opts, profileTargets[i], chdir, backupPaths, callback); err != nil {
 			return errors.Wrap(err, "backup one")
 		}
 	}
@@ -198,7 +231,7 @@ func BackupOne(
 		cmd.Dir = chdir
 	}
 
-	return resticCmd(target, cmd, callback)
+	return streamingResticCommand(target, cmd, callback)
 }
 
 func InitRepo(
@@ -207,23 +240,35 @@ func InitRepo(
 	callback func(any) error,
 ) error {
 	cmd := exec.Command(opts.ResticPath, "init", "--json")
-	return resticCmd(target, cmd, callback)
+	return streamingResticCommand(target, cmd, callback)
 }
 
-func resticCmd(
+func Stats(
+	opts *cfg.BackupConfig,
+	target *cfg.BackupTarget,
+) (*ResticStats, error) {
+	cmd := exec.Command(opts.ResticPath, "stats", "--json")
+	addEnv(target, cmd)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, errors.Wrapf(err, "run (output: %s)", string(output))
+	}
+
+	var stats ResticStats
+	if err := json.Unmarshal(output, &stats); err != nil {
+		return nil, errors.Wrap(err, "unmarshal")
+	}
+
+	return &stats, nil
+}
+
+func streamingResticCommand(
 	target *cfg.BackupTarget,
 	cmd *exec.Cmd,
 	callback func(any) error,
 ) error {
-	cmd.Env = append(os.Environ(),
-		"AWS_ACCESS_KEY_ID="+target.AwsAccessKeyId,
-		"AWS_SECRET_ACCESS_KEY="+target.AwsSecretAccessKey,
-		"RESTIC_REPOSITORY="+target.ResticRepository,
-		"RESTIC_PASSWORD="+target.ResticPassword,
-	)
-	if target.CACertPath != "" {
-		cmd.Env = append(cmd.Env, "RESTIC_CACERT="+os.ExpandEnv(target.CACertPath))
-	}
+	addEnv(target, cmd)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -297,4 +342,16 @@ func resticCmd(
 	}
 
 	return nil
+}
+
+func addEnv(target *cfg.BackupTarget, cmd *exec.Cmd) {
+	cmd.Env = append(os.Environ(),
+		"AWS_ACCESS_KEY_ID="+target.AwsAccessKeyId,
+		"AWS_SECRET_ACCESS_KEY="+target.AwsSecretAccessKey,
+		"RESTIC_REPOSITORY="+target.ResticRepository,
+		"RESTIC_PASSWORD="+target.ResticPassword,
+	)
+	if target.CACertPath != "" {
+		cmd.Env = append(cmd.Env, "RESTIC_CACERT="+os.ExpandEnv(target.CACertPath))
+	}
 }
