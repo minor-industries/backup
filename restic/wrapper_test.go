@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"testing"
@@ -82,6 +83,12 @@ func TestRunWithKeychainProfiles(t *testing.T) {
 		fmt.Println(string(marshal))
 		return nil
 	})
+
+	// Try running backup before init
+	err = restic.Run(opts, srcDir, []string{"."}, callback)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exit status 10")
+	assert.Contains(t, err.Error(), "repository does not exist")
 
 	err = restic.InitRepo(opts, &cfg.BackupTarget{
 		ResticRepository: backupDirA,

@@ -2,11 +2,13 @@ package restic
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/minor-industries/backup/cfg"
 	"github.com/minor-industries/backup/keychain"
 	"github.com/pkg/errors"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -228,30 +230,70 @@ func resticCmd(
 		return errors.Wrap(err, "get stdout pipe")
 	}
 
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return errors.Wrap(err, "get stderr pipe")
+	}
+
 	if err := cmd.Start(); err != nil {
 		return errors.Wrap(err, "start restic")
 	}
 
-	scanner := bufio.NewScanner(stdoutPipe)
-	for scanner.Scan() {
-		line := scanner.Bytes()
+	errCh := make(chan error)
+	defer close(errCh)
+	numProcs := 0
+	stderrCh := make(chan string)
+	defer close(stderrCh)
 
-		msg, err := decodeResticMessage(line)
+	numProcs++
+	go func() {
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			line := scanner.Bytes()
+
+			msg, err := decodeResticMessage(line)
+			if err != nil {
+				errCh <- errors.Wrap(err, "decode restic message")
+				return
+			}
+
+			if err := callback(msg); err != nil {
+				errCh <- errors.Wrap(err, "callback returned error")
+				return
+			}
+		}
+
+		errCh <- nil
+	}()
+
+	numProcs++
+	go func() {
+		var stderrBuffer bytes.Buffer
+		io.Copy(&stderrBuffer, stderrPipe)
+		stderrCh <- stderrBuffer.String()
+		errCh <- nil
+	}()
+
+	numProcs++
+	go func() {
+		err := cmd.Wait()
+		stderr := <-stderrCh
 		if err != nil {
-			return errors.Wrap(err, "decode restic message")
+			errCh <- errors.Wrapf(err, "restic command failed, stderr: %s", stderr)
+			return
 		}
+		errCh <- nil
+	}()
 
-		if err := callback(msg); err != nil {
-			return errors.Wrap(err, "callback returned error")
-		}
+	allErrors := make([]error, numProcs)
+	for i := 0; i < numProcs; i++ {
+		allErrors[i] = <-errCh
 	}
 
-	if err := scanner.Err(); err != nil {
-		return errors.Wrap(err, "read from restic stdout")
-	}
-
-	if err := cmd.Wait(); err != nil {
-		return errors.Wrap(err, "wait for restic command")
+	for _, err := range allErrors {
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
