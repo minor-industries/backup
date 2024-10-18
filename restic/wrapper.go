@@ -46,7 +46,7 @@ func Run(
 		return errors.New("no backup paths given")
 	}
 
-	allTargets, err := loadProfilesAndCheckTargets(opts, nil)
+	allTargets, err := loadProfilesAndCheckTargets(opts, callback)
 	if err != nil {
 		return errors.Wrap(err, "check targets")
 	}
