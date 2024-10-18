@@ -130,6 +130,9 @@ func BackupOneConsole(
 
 	addEnv(target, cmd)
 
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
 	err := cmd.Run()
 	return errors.Wrap(err, "run")
 }
