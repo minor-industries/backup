@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/minor-industries/backup/cfg"
 	"github.com/minor-industries/backup/keychain"
 	"github.com/pkg/errors"
@@ -111,6 +112,13 @@ func BackupOneConsole(
 	chdir string,
 	backupPaths []string,
 ) error {
+	masked, err := maskPassword(target.ResticRepository)
+	if err != nil {
+		return errors.Wrap(err, "mask repo password")
+	}
+
+	fmt.Println("starting backup to:", masked)
+
 	args := []string{
 		os.ExpandEnv(opts.ResticPath),
 		"backup",
@@ -133,7 +141,7 @@ func BackupOneConsole(
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	return errors.Wrap(err, "run")
 }
 
