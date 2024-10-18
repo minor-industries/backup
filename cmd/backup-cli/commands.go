@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	gokeychain "github.com/keybase/go-keychain"
 	"github.com/minor-industries/backup/keychain"
 	"github.com/peterh/liner"
 	"github.com/pkg/errors"
@@ -168,7 +167,7 @@ type DeleteCommand struct {
 func (cmd *DeleteCommand) Execute(args []string) error {
 	err := keychain.DeleteProfile(cmd.Profile)
 	if err != nil {
-		if errors.Is(err, gokeychain.ErrorItemNotFound) {
+		if errors.Is(err, keychain.ErrorItemNotFound) {
 			fmt.Printf("Profile '%s' not found.\n", cmd.Profile)
 			return nil
 		}
